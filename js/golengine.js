@@ -37,6 +37,7 @@ var golUniverse = {
     },
     grid: null,
     nextGrid: null,
+    adjacentCellLOT: null,
     gridLineWidth: null,
     fps: null
 }
@@ -109,17 +110,24 @@ function golStart(initialState) {
                 golUniverse.gridSize.y);
         }
 
+        if (golUniverse.adjacentCellLOT == null) {
+            golUniverse.adjacentCellLOT = createEmpty2dArray(
+                golUniverse.gridSize.x,
+                golUniverse.gridSize.y);
+        }
+
         initialState = typeof initialState !== 'undefined'
             ? initialState : "random";
 
+        cgolInitialize(golUniverse, initialState);
+        
         if (initialState == "random") {
             // initialize random world
+
             for (var i = 0; i < golUniverse.gridSize.x; i++) {
                 for (var j = 0; j < golUniverse.gridSize.y; j++) {
-                    golUniverse.grid[i][j] = Math.floor(Math.random()*5) == 0;
-                    
                     // if this is a live cell, draw it
-                    if (golUniverse.grid[i][j]) {
+                    if (cgolIsCellAlive(golUniverse.grid[i][j])) {
                         drawRect(
                             i * golUniverse.cellSize
                                 + golUniverse.gridOffset.x,
@@ -130,18 +138,18 @@ function golStart(initialState) {
                     }
                 }
             }
-
             if (editObject.editMode) {
                 golToggleEdit();
             }
         }
         else if (initialState == "clear") {
+            /*
             for (var i = 0; i < golUniverse.gridSize.x; i++) {
                 for (var j = 0; j < golUniverse.gridSize.y; j++) {
                     golUniverse.grid[i][j] = false;
                 }
             }
-
+            */
             if (!editObject.editMode) {
                 golToggleEdit();
             }
@@ -169,54 +177,15 @@ function createEmpty2dArray(x, y) {
 
 function golUpdate() {
     // update universe
-    for (var i = 0; i < golUniverse.gridSize.x; i++) {
-        for (var j = 0; j < golUniverse.gridSize.y; j++) {
-            // count adjacent cells
-            var adjacentCellCount = 0;
-            var sufficientCount = false;
-            
-            for (var k = -1; k < 2 && !sufficientCount; k++) {
-                for (var l = -1; l < 2 && !sufficientCount; l++) {
-                    if (!(k == 0 && l == 0)) {
-                        currentX = (i + k + golUniverse.gridSize.x)
-                            % golUniverse.gridSize.x;
-                        currentY = (j + l + golUniverse.gridSize.y)
-                            % golUniverse.gridSize.y;
-                        
-                        if (golUniverse.grid[currentX][currentY]) {
-                            adjacentCellCount++;
-                            if (adjacentCellCount > 3) {
-                                sufficientCount = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (golUniverse.grid[i][j]) {
-                if (adjacentCellCount < 2 || adjacentCellCount > 3) {
-                    golUniverse.nextGrid[i][j] = false;
-                }
-                else {
-                    golUniverse.nextGrid[i][j] = true;
-                }
-            }
-            else {
-                if (adjacentCellCount == 3) {
-                    golUniverse.nextGrid[i][j] = true;
-                }
-                else {
-                    golUniverse.nextGrid[i][j] = false;
-                }
-            }
-        }
-    }
-
+    cgolUpdateUniverse(golUniverse);
+    
     // draw universe
     for (var i = 0; i < golUniverse.gridSize.x; i++) {
         for (var j = 0; j < golUniverse.gridSize.y; j++) {
-            if (golUniverse.nextGrid[i][j] != golUniverse.grid[i][j]) {
-                if (golUniverse.nextGrid[i][j]) {
+            if (!cgolAreCellsEqual(
+                    golUniverse.nextGrid[i][j],
+                    golUniverse.grid[i][j])) {
+                if (cgolIsCellAlive(golUniverse.nextGrid[i][j])) {
                     drawRect(
                         i * golUniverse.cellSize + golUniverse.gridOffset.x,
                         j * golUniverse.cellSize + golUniverse.gridOffset.y,
@@ -326,10 +295,10 @@ function mouseDownEditHandler(event) {
         (mousePos.y - golUniverse.gridOffset.y)
         / golUniverse.cellSize);
 
-    golUniverse.grid[currentEditCell.x][currentEditCell.y]
-        = !(golUniverse.grid[currentEditCell.x][currentEditCell.y]);
-
-    if (golUniverse.grid[currentEditCell.x][currentEditCell.y]) {
+    cgolFlipCell(golUniverse.grid, currentEditCell.x, currentEditCell.y);
+    
+    if (cgolIsCellAlive(
+            golUniverse.grid[currentEditCell.x][currentEditCell.y])) {
         drawRect(
             currentEditCell.x * golUniverse.cellSize 
                 + golUniverse.gridOffset.x + golUniverse.gridLineWidth / 2,
@@ -383,10 +352,10 @@ function mouseMoveEditHandler(event) {
     if (editObject.currentEditCell.x != currentEditCell.x
         || editObject.currentEditCell.y != currentEditCell.y) {
     
-        golUniverse.grid[currentEditCell.x][currentEditCell.y]
-            = !(golUniverse.grid[currentEditCell.x][currentEditCell.y]);
+        cgolFlipCell(golUniverse.grid, currentEditCell.x, currentEditCell.y);
 
-        if (golUniverse.grid[currentEditCell.x][currentEditCell.y]) {
+        if (cgolIsCellAlive(
+                golUniverse.grid[currentEditCell.x][currentEditCell.y])) {
             drawRect(
                 currentEditCell.x * golUniverse.cellSize 
                     + golUniverse.gridOffset.x
@@ -474,7 +443,7 @@ function drawAllCells() {
 
     for (var i = 0; i < golUniverse.gridSize.x; i++) {
         for (var j = 0; j < golUniverse.gridSize.y; j++) {
-            if (golUniverse.grid[i][j]) {
+            if (cgolIsCellAlive(golUniverse.grid[i][j])) {
                 drawRect(
                     i * golUniverse.cellSize + golUniverse.gridOffset.x,
                     j * golUniverse.cellSize + golUniverse.gridOffset.y,
